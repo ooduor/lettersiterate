@@ -1,0 +1,7 @@
+virtualenv -p /usr/bin/python3.6 venv3.6
+
+# Pip list
+pip freeze –local > requirements.txt
+
+# Reverse
+pip install -r requirements.txt
