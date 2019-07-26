@@ -3,6 +3,7 @@ Newspaper Images . Letters to the editor . Repeat
 
 ## Setup
 Check out source code.
+
 `git clone https://github.com/ooduor/lettersiterate.git`
 
 ## Pre-requisites
