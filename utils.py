@@ -82,12 +82,12 @@ def determine_precedence(contour, cols, avgwidth, leftmost_x):
             avgwidth = avgwidth + leftmost_x
 
         if x <= avgwidth:
-            col_loc = ((x // tolerance_factor) * tolerance_factor) * i + y
+            col_loc = ((x / tolerance_factor) * tolerance_factor) * i + y
         i = i + 1
         avgwidth = avgwidth*i
 
     if not col_loc: # if wasn't within any of the columns put it in the last one atleast
-        col_loc = ((x // tolerance_factor) * tolerance_factor) * cols + y
+        col_loc = ((x / tolerance_factor) * tolerance_factor) * cols + y
 
     return col_loc
 
