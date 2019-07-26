@@ -14,4 +14,8 @@ Check out source code.
 ### Install dependent python libraries
 `pip install -r requirements.txt`
 
+## Usage
 
+Image quality and size affects the output. Minimum recommended width for best results is 2048 pixels.
+
+`./main.py ../DNIssues/dds-89412-page-8.png`
