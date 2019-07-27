@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 from pprint import pprint
 import math
 import argparse
@@ -11,6 +12,12 @@ from utils import lines_extraction, draw_lines, extract_polygons, \
     column_summaries, determine_precedence, redraw_titles, redraw_contents
 
 def main(args):
+    # create out dir
+    current_directory = os.getcwd()
+    final_directory = os.path.join(current_directory, r'output')
+    if not os.path.exists(final_directory):
+        os.makedirs(final_directory)
+
     # get params
     path_to_image = args.image
     image = cv2.imread(path_to_image) #reading the image
@@ -65,7 +72,8 @@ def main(args):
     rlsa_contents_mask_for_avg_width = rlsa_contents_mask
 
     # get avg properties of columns
-    contents_sum_list, contents_x_list = column_summaries(image, rlsa_contents_mask_for_avg_width)
+    contents_sum_list, contents_x_list, for_avgs_contours_mask = column_summaries(image, rlsa_contents_mask_for_avg_width)
+    cv2.imwrite(os.path.join(final_directory, 'for_avgs_contours_mask.png'), for_avgs_contours_mask) # debug remove
     trimmed_mean = int(stats.trim_mean(contents_sum_list, 0.1)) # trimmed mean
     leftmost_x = min(contents_x_list)
 
@@ -80,7 +88,7 @@ def main(args):
     print(total_columns)
     contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x))
     clear_titles_mask = redraw_titles(image, contours)
-    cv2.imwrite('clear_titles_mask.png', clear_titles_mask) # debug remove
+    cv2.imwrite(os.path.join(final_directory, 'clear_titles_mask.png'), clear_titles_mask) # debug remove
 
     ### contents work
     (contours, _) = cv2.findContours(~rlsa_contents_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
@@ -120,7 +128,7 @@ def main(args):
                 if cy < y and cx-10 < x and x < (cx+w): # less than because it appears above
                     # check but not greater than the next title!!
                     if y > ny: # or next is another column
-                        break
+                        continue
                     # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
                     # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
                     contents = clear_contents_mask[y: y+h, x: x+w]
@@ -128,11 +136,23 @@ def main(args):
                     image[y: y+h, x: x+w] = 255 # nullified the title contour on original image
                     # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
 
+                #  continued article
+                if x < (cx+cw) and y < ny and cx < x: # covered by length of title | is anothe column
+                    # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
+                    # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+                    contents = clear_contents_mask[y: y+h, x: x+w]
+                    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
+                    # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
+
+                    # check but not greater than the next title!!
+                    if y > ny: # or next is another column
+                        continue
+
             article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
             image[cy: cy+ch, cx: cx+cw] = 255 # nullified the title contour on original image
 
-            cv2.imwrite('article_{}big.png'.format(idx), article_mask)
+            cv2.imwrite(os.path.join(final_directory, 'article_{}big.png'.format(idx)), article_mask)
             article_complete = True
         elif (ny-cy) < (nh+ch)*2 and (ny-cy) > 0 and nx <= cx+10: # next if not greater... but just small|
             print('Small Gap! {}'.format(idx))
@@ -162,7 +182,7 @@ def main(args):
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
                 image[ny: ny+nh, nx: nx+nw] = 255 # nullified the title contour on original image
 
-                cv2.imwrite('article_{}.png'.format(idx), article_mask)
+                cv2.imwrite(os.path.join(final_directory, 'article_{}.png'.format(idx)), article_mask)
 
             article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
@@ -191,7 +211,7 @@ def main(args):
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
             image[cy: cy+ch, cx: cx+cw] = 255 # nullified the title contour on original image
 
-            cv2.imwrite('article_{}invalid.png'.format(idx), article_mask)
+            cv2.imwrite(os.path.join(final_directory, 'article_{}invalid.png'.format(idx)), article_mask)
             article_complete = True
 
         else: # must be first one with next invalid...
@@ -215,7 +235,7 @@ def main(args):
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
             image[cy: cy+ch, cx: cx+cw] = 255 # nullified the title contour on original image
 
-            cv2.imwrite('article_{}invalidfirst.png'.format(idx), article_mask)
+            cv2.imwrite(os.path.join(final_directory, 'article_{}invalidfirst.png'.format(idx)), article_mask)
             article_complete = True
 
     print('Main code {} {}'.format(args.image, args.iteras))

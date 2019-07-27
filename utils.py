@@ -63,9 +63,7 @@ def column_summaries(image, rlsa_mask):
             contents_x_list.append(x)
             contents_length += 1
 
-    cv2.imwrite('for_avgs_contours_mask.png', for_avgs_contours_mask) # debug remove
-
-    return contents_sum_list, contents_x_list
+    return contents_sum_list, contents_x_list, for_avgs_contours_mask
 
 def determine_precedence(contour, cols, avgwidth, leftmost_x):
     """
@@ -73,6 +71,7 @@ def determine_precedence(contour, cols, avgwidth, leftmost_x):
     https://stackoverflow.com/questions/39403183/python-opencv-sorting-contours
     """
     tolerance_factor = 10
+    vertical_tolerance_factor = 100
     [x,y,w,h] = cv2.boundingRect(contour)
     i = 1
     col_loc = None
