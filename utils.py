@@ -122,7 +122,8 @@ def redraw_contents(image, contours):
         # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
         contents = image[y: y+h, x: x+w]
         clear_contents_mask[y: y+h, x: x+w] = contents # copied contents contour onto the blank image
-        image[y: y+h, x: x+w] = 255 # nullified the contents contour on original image
+        # image[y: y+h, x: x+w] = 255 # nullified the contents contour on original image
         # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idx, x, y), cv2.boundingRect(contours[idx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
 
+    # cv2.imwrite('clear_contents_mask.png', clear_contents_mask) # debug remove
     return clear_contents_mask
