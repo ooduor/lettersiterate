@@ -65,15 +65,16 @@ def column_summaries(image, rlsa_mask):
 
     return contents_sum_list, contents_x_list, for_avgs_contours_mask
 
-def determine_precedence(contour, cols, avgwidth, leftmost_x):
+def determine_precedence(contour, cols, avgwidth, leftmost_x, m_height):
     """
     Sort contours by distance from...
     https://stackoverflow.com/questions/39403183/python-opencv-sorting-contours
     """
     tolerance_factor = 10
-    vertical_tolerance_factor = 100
     [x,y,w,h] = cv2.boundingRect(contour)
     i = 1
+    col_height = 0
+    x_adjustment = avgwidth
     col_loc = None
     while i <= cols:
         # for the first loop only, offset with beginning of first title
@@ -81,12 +82,13 @@ def determine_precedence(contour, cols, avgwidth, leftmost_x):
             avgwidth = avgwidth + leftmost_x
 
         if x <= avgwidth:
-            col_loc = ((x / tolerance_factor) * tolerance_factor) * i + y
+            col_loc = ((x / tolerance_factor) * tolerance_factor) * i + y + col_height
         i = i + 1
-        avgwidth = avgwidth*i
+        avgwidth = x_adjustment*i
+        col_height = col_height+(m_height*2)
 
-    if not col_loc: # if wasn't within any of the columns put it in the last one atleast
-        col_loc = ((x / tolerance_factor) * tolerance_factor) * cols + y
+    if col_loc is None: # if wasn't within any of the columns put it in the last one atleast
+        col_loc = ((x / tolerance_factor) * tolerance_factor) * cols + y + col_height
 
     return col_loc
 
@@ -126,3 +128,11 @@ def redraw_contents(image, contours):
 
     # cv2.imwrite('clear_contents_mask.png', clear_contents_mask) # debug remove
     return clear_contents_mask
+
+def draw_columns(leftmost_x, trimmed_mean, total_columns, clear_titles_mask):
+    counter = 1
+    x = leftmost_x + trimmed_mean
+    while counter <= total_columns:
+        cv2.line(clear_titles_mask, (x, 0), (x, 2000), (0,255,0), 2)
+        counter+=1
+        x+=trimmed_mean

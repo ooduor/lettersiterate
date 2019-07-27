@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import sys
 from pprint import pprint
 import math
 import argparse
@@ -9,17 +10,26 @@ from scipy import stats
 from pythonRLSA import rlsa
 
 from utils import lines_extraction, draw_lines, extract_polygons, \
-    column_summaries, determine_precedence, redraw_titles, redraw_contents
+    column_summaries, determine_precedence, redraw_titles, redraw_contents, \
+    draw_columns
 
 def main(args):
+    # get params
+    path_to_image = args.image
+    # check if file exists here and exist if not
+    try:
+        f = open(path_to_image)
+        f.close()
+    except FileNotFoundError:
+        print('Image given does not exist')
+        sys.exit(0)
+
     # create out dir
     current_directory = os.getcwd()
     final_directory = os.path.join(current_directory, r'output')
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
 
-    # get params
-    path_to_image = args.image
     image = cv2.imread(path_to_image) #reading the image
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # converting to grayscale image
     (thresh, im_bw) = cv2.threshold(gray,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU) # converting to binary image
@@ -84,10 +94,12 @@ def main(args):
     # apply some heuristic to differentiate other stranger things masquerading as titles
     nt_contours = [contour for contour in contours if cv2.boundingRect(contour)[2]*cv2.boundingRect(contour)[3] > threshold]
 
-    total_columns = int(image.shape[1]/trimmed_mean)*2
+    total_columns = int(image.shape[1]/trimmed_mean)
     print(total_columns)
-    contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x))
+    contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_titles_mask = redraw_titles(image, contours)
+
+    # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_titles_mask)
     cv2.imwrite(os.path.join(final_directory, 'clear_titles_mask.png'), clear_titles_mask) # debug remove
 
     ### contents work
@@ -95,7 +107,7 @@ def main(args):
     # apply some heuristic to different other stranger things masquerading as titles
     nt_contours = [contour for contour in contours if cv2.boundingRect(contour)[2]*cv2.boundingRect(contour)[3] > threshold]
 
-    contents_contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x))
+    contents_contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_contents_mask = redraw_contents(image, contents_contours)
 
     # start printing individual articles based on titles! The final act
@@ -104,7 +116,7 @@ def main(args):
     # apply some heuristic to different other stranger things masquerading as titles
     nt_contours = [contour for contour in contours if cv2.boundingRect(contour)[2]*cv2.boundingRect(contour)[3] > threshold]
 
-    contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x))
+    contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
 
     article_complete = False
     title_lines_count = 0
