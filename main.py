@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import os
 import sys
+import glob
 from pprint import pprint
 import math
 import argparse
 import cv2
+import imutils
 import numpy as np
 from scipy import stats
 from pythonRLSA import rlsa
@@ -16,6 +18,8 @@ from utils import lines_extraction, draw_lines, extract_polygons, \
 def main(args):
     # get params
     path_to_image = args.image
+    empty_output = args.empty
+
     # check if file exists here and exist if not
     try:
         f = open(path_to_image)
@@ -30,7 +34,19 @@ def main(args):
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
 
+    # standardize size of the images maintaining aspect ratio
+    if empty_output:
+        files = glob.glob('{}/*'.format(final_directory))
+        for f in files:
+            os.remove(f)
+
     image = cv2.imread(path_to_image) #reading the image
+
+    image_width = image.shape[1]
+    if image_width != 2048:
+        image = imutils.resize(image, width=2048)
+        cv2.imwrite('image.png' , image)
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # converting to grayscale image
     (thresh, im_bw) = cv2.threshold(gray,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU) # converting to binary image
     # invert image data using unary tilde operator
@@ -250,7 +266,7 @@ def main(args):
             cv2.imwrite(os.path.join(final_directory, 'article_{}invalidfirst.png'.format(idx)), article_mask)
             article_complete = True
 
-    print('Main code {} {}'.format(args.image, args.iteras))
+    print('Main code {} {}'.format(args.image, args.empty))
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
@@ -258,7 +274,7 @@ if __name__ == '__main__':
     # Instantiate the parser
     parser = argparse.ArgumentParser(prog="LettersIterate", description='Split Veritable Columns in a Newspaper Like Image')
     parser.add_argument('image', type=str, help='Path to the image file') # Required positional argument
-    parser.add_argument('--iteras', type=int, help='An optional integer argument') # Optional argument
+    parser.add_argument('--empty', type=bool, help='An optional boolean argument to empty output folder before each processing', default=True) # Optional argument
     parser.add_argument('--version', action='version', version='%(prog)s 0.1')
     args = parser.parse_args()
 
