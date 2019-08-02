@@ -83,6 +83,7 @@ def determine_precedence(contour, cols, avgwidth, leftmost_x, m_height):
 
         if x <= avgwidth:
             col_loc = ((x / tolerance_factor) * tolerance_factor) * i + y + col_height
+            break
         i = i + 1
         avgwidth = x_adjustment*i
         col_height = col_height+(m_height*2)
@@ -98,15 +99,14 @@ def redraw_titles(image, contours):
     """
     clear_titles_mask = np.ones(image.shape, dtype="uint8") * 255 # blank 3 layer image
 
-    for idx in range(len(contours)):
-        contour = contours[idx]
+    for idx, contour in enumerate(contours):
         [x, y, w, h] = cv2.boundingRect(contour)
         # cv2.drawContours(clear_titles_mask, [contour], -1, 0, -1)
         # cv2.rectangle(clear_titles_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
         titles = image[y: y+h, x: x+w]
         clear_titles_mask[y: y+h, x: x+w] = titles # copied titles contour onto the blank image
         image[y: y+h, x: x+w] = 255 # nullified the titles contour on original image
-        # cv2.putText(clear_titles_mask, "#{},x{},y{},h{}".format(idx, x, y, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 0, 0], 2) # [B, G, R]
+        # cv2.putText(clear_titles_mask, "#{},x{},y{},w{},h{}".format(idx, x, y, w, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
 
     return clear_titles_mask
 
