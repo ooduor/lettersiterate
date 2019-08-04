@@ -41,8 +41,11 @@ def extract_polygons(im_bw, lines_mask):
     areas = [cv2.contourArea(c) for c in contours]
     avgArea = sum(areas)/len(areas)
     for c in contours:
-        if cv2.contourArea(c)>200*avgArea:
+        # [x, y, w, h] = cv2.boundingRect(c)
+        if cv2.contourArea(c) > 100*avgArea:
             cv2.drawContours(lines_mask, [c], -1, 0, -1)
+            # cv2.rectangle(lines_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+            # cv2.putText(lines_mask, "x{},y{},w{},h{}".format(x, y, w, h), cv2.boundingRect(c)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
 
     return lines_mask
 
@@ -116,15 +119,14 @@ def redraw_contents(image, contours):
     """
     clear_contents_mask = np.ones(image.shape, dtype="uint8") * 255 # blank 3 layer image
 
-    # for idx, contour in enumerate(contours):
-    for idx in range(len(contours)):
-        [x, y, w, h] = cv2.boundingRect(contours[idx])
-        # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
+    for idx, contour in enumerate(contours):
+        [x, y, w, h] = cv2.boundingRect(contour)
+        # cv2.drawContours(clear_contents_mask, [contour], -1, 0, -1)
         # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
         contents = image[y: y+h, x: x+w]
         clear_contents_mask[y: y+h, x: x+w] = contents # copied contents contour onto the blank image
         # image[y: y+h, x: x+w] = 255 # nullified the contents contour on original image
-        # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idx, x, y), cv2.boundingRect(contours[idx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
+        # cv2.putText(clear_contents_mask, "#{},x{},y{},w{},h{}".format(idx, x, y, w, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
 
     # cv2.imwrite('clear_contents_mask.png', clear_contents_mask) # debug remove
     return clear_contents_mask

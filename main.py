@@ -74,15 +74,19 @@ def main(args):
     heights = [cv2.boundingRect(contour)[3] for contour in contours]
     avgheight = sum(heights)/len(heights)
 
+    title_widths = []
+    content_widths = []
     # finding the larger text
     for c in contours:
         [x,y,w,h] = cv2.boundingRect(c)
         cv2.rectangle(contents_mask, (x,y), (x+w,y+h), (255, 0, 0), 1)
         if h > 2*avgheight:
             cv2.drawContours(titles_mask, [c], -1, 0, -1)
+            title_widths.append(w)
         elif h*w > 20: # remove specks on dots
             # get the biggest chunks of texts... articles!
             cv2.drawContours(contents_mask, [c], -1, 0, -1)
+            content_widths.append(w)
 
     # helps further detach titles if necessary. This step can be removed
     # titles_mask = cv2.erode(titles_mask, kernel, iterations = 1)
@@ -93,13 +97,17 @@ def main(args):
     image_mask[0: m_height, 0: m_width] = image[0: m_height, 0: m_width]
 
     # run length smoothing algorithms for vertical and lateral conjoining of pixels
-    value = max(math.ceil(m_height/100), math.ceil(m_width/100))+50
+    value = math.ceil(sum(title_widths)/len(title_widths))*2
+    print('RLSA Title Value', value)
     rlsa_titles_mask = rlsa.rlsa(titles_mask, True, False, value) #rlsa application
     rlsa_titles_mask_for_final = rlsa_titles_mask
+    cv2.imwrite(os.path.join(final_directory, 'rlsa_titles_mask.png'), rlsa_titles_mask) # debug remove
 
-    value = max(math.ceil(m_height/100),math.ceil(m_width/100))+20
+    value = math.ceil(sum(content_widths)/len(content_widths))*3
+    print('RLSA Content Value', value)
     rlsa_contents_mask = rlsa.rlsa(contents_mask, False, True, value) #rlsa application
     rlsa_contents_mask_for_avg_width = rlsa_contents_mask
+    cv2.imwrite(os.path.join(final_directory, 'rlsa_contents_mask.png'), rlsa_contents_mask) # debug remove
 
     # get avg properties of columns
     contents_sum_list, contents_x_list, for_avgs_contours_mask = column_summaries(image, rlsa_contents_mask_for_avg_width)
@@ -128,7 +136,7 @@ def main(args):
 
     contents_contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_contents_mask = redraw_contents(image_mask, contents_contours)
-    cv2.imwrite('clear_contents_mask.png', clear_contents_mask)
+    cv2.imwrite(os.path.join(final_directory, 'clear_contents_mask.png'), clear_contents_mask)
 
     # start printing individual articles based on titles! The final act
     (contours, _) = cv2.findContours(~rlsa_titles_mask_for_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -166,6 +174,8 @@ def main(args):
                     contents = clear_contents_mask[y: y+h, x: x+w]
                     article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
                     # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
+                # elif any(cv2.boundingRect(contour)[0]+20 < x+w and cv2.boundingRect(contour)[1]+20 > y for idxxx, contour in enumerate(contours) if idxxx > idx and cv2.boundingRect(contour)[0]-50 > cx): # or next is another column | or future
+                #     continue
 
                 #  continued article
                 if x < (cx+cw) and y < ny and cx < x and any(cv2.boundingRect(contour)[0]+20 > x for idxxx, contour in enumerate(contours) if idxxx > idx and cv2.boundingRect(contour)[0]-50 > cx): # covered by length of title | is anothe column | all following titles even after adding a 10 pixels should be more than the x value of the content
