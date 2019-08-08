@@ -156,125 +156,89 @@ def main(args):
             article_mask = np.ones(image.shape, dtype="uint8") * 255 # blank layer image for antother separate article
         [cx, cy, cw, ch] = cv2.boundingRect(_curr)
         [nx, ny, nw, nh] = cv2.boundingRect(_next)
-        if (ny-cy) > (nh+ch)*2: # next is greater than current...
-            print('Big Gap! {}'.format(idx))
 
-            # loop through contents and insert any valid ones in this gap
-            for idxx in range(len(contents_contours)):
-                [x, y, w, h] = cv2.boundingRect(contents_contours[idxx])
-                # search_area_rect = cv2.rectangle(clear_contents_mask,(cx,cy),(x+w,y+h),(0,0,255),thickness=3,shift=0)
-                dist = cv2.pointPolygonTest(contents_contours[idxx],(x,y), False)
-                # https://stackoverflow.com/a/50670359/754432
-                if cy < y and cx-10 < x and x < (cx+w): # less than because it appears above | all following titles even after adding a 10 should be more than the x value of the content
-                    # check but not greater than the next title!!
-                    if y > ny: # or next is another column
-                        continue
-                    # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
-                    # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
-                    contents = clear_contents_mask[y: y+h, x: x+w]
-                    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
-                    # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
-                # elif any(cv2.boundingRect(contour)[0]+20 < x+w and cv2.boundingRect(contour)[1]+20 > y for idxxx, contour in enumerate(contours) if idxxx > idx and cv2.boundingRect(contour)[0]-50 > cx): # or next is another column | or future
-                #     continue
+        # titles continue in two ways, 1) followed by another title below or 2) next column
+        # 1) if following title continues below...
+        if cy < ny and cx+ch >= nx: # current is above next & current+it's height is still further in than next = same column
+            print('Here in {}'.format(idx))
+            content_found = []
 
-                #  continued article
-                if x < (cx+cw) and y < ny and cx < x and any(cv2.boundingRect(contour)[0]+20 > x for idxxx, contour in enumerate(contours) if idxxx > idx and cv2.boundingRect(contour)[0]-50 > cx): # covered by length of title | is anothe column | all following titles even after adding a 10 pixels should be more than the x value of the content
-                    # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
-                    # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
-                    contents = clear_contents_mask[y: y+h, x: x+w]
-                    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
-                    # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
+            # loop through contents and insert any valid ones if any
+            for idxx, content_contour in enumerate(contents_contours):
+                [x, y, w, h] = cv2.boundingRect(content_contour)
 
-                    # check but not greater than the next title!!
-                    if y > ny: # or next is another column
-                        continue
+                # check if there is any content below but not beyond next title
+                if all(
+                    # (y+h < cv2.boundingRect(contour)[1] and cv2.boundingRect(contour)[0]+cv2.boundingRect(contour)[2] > x+20) and
+                    (y+h < cv2.boundingRect(contour)[1]+cv2.boundingRect(contour)[3] or cv2.boundingRect(contour)[1] > y) and
+                    cv2.boundingRect(contour)[1]-50 > cy+ch and
+                    (x < cx+cw and x > cx-50) and
+                    y > cy for idxxx, contour in enumerate(contours) if idxxx > idx and cv2.boundingRect(contour)[0]+50 < cx+cw and cy+50 < cv2.boundingRect(contour)[1]): # or next is another column | or future
+                    article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                    cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(idxx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
+                    content_found.append(True)
+                else:
+                    pass
+                    # content_found.append(False)
 
             article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
 
-            cv2.imwrite(os.path.join(final_directory, 'article_{}big.png'.format(idx)), article_mask)
-            article_complete = True
-        elif (ny-cy) < (nh+ch)*2 and (ny-cy) > 0 and nx <= cx+10: # next if not greater... but just small|
-            print('Small Gap! {}'.format(idx))
-
-            # handle special cases like end of the page
-            if len(contours) == (idx+2): # we are on last article, it's always greater by 2 instead of one. Nkt!
-                # loop through contents and insert any valid ones in this gap
-                for idxx in range(len(contents_contours)):
-                    [x, y, w, h] = cv2.boundingRect(contents_contours[idxx])
-                    if cy-ch < y and (cy+ch) < (y+h) and (cx+cw) < (x+w): # more than because it appears above but not too above
-                        # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
-                        # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
-                        contents = clear_contents_mask[y: y+h, x: x+w]
-                        article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
-                        image[y: y+h, x: x+w] = 255 # nullified the title contour on original image
-                        # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
-
-                        # check that it does not encounter new title in next column
-                        if y > ny:
-                            break
-
-                article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
-                article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
-
-                article_title_p = clear_titles_mask[ny: ny+nh, nx: nx+nw]
-                article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
-
+            print(content_found)
+            if any(content_found):
                 cv2.imwrite(os.path.join(final_directory, 'article_{}.png'.format(idx)), article_mask)
+                article_complete = True
+            else:
+                # cv2.imwrite(os.path.join(final_directory, 'article_{}wala.png'.format(idx)), article_mask)
+                article_complete = False
+
+        # 2) if following title continues in next column
+        else:
+            print('Here with next column {}'.format(idx))
+            content_found = []
+
+            # loop through contents and insert any valid ones if any
+            for idxx, content_contour in enumerate(contents_contours):
+                [x, y, w, h] = cv2.boundingRect(content_contour)
+
+                # check if there is any content below but not beyond next title
+                if all(
+                    # (y+h > cv2.boundingRect(contour)[1] or cv2.boundingRect(contour)[1] < y) and
+                    (x < cx+cw and x > cx-20 and cx < x+w) and
+                    (cv2.boundingRect(contour)[0]+cv2.boundingRect(contour)[2] > x or cv2.boundingRect(contour)[1] > y) and
+                    y > cy for idxxx, contour in enumerate(contours) if (idxxx > idx and idxxx <= idx+1) and cv2.boundingRect(contour)[0]+cv2.boundingRect(contour)[2] > cx+cw and cx-50 < cv2.boundingRect(contour)[0]): # or next is another column | or future
+                    article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                    cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(idxx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
+                    content_found.append(True)
+                else:
+                    pass
+                    # content_found.append(False)
 
             article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
 
-            article_complete = False
+            print(content_found)
+            if any(content_found):
+                cv2.imwrite(os.path.join(final_directory, 'article_{}newcol.png'.format(idx)), article_mask)
+                article_complete = True
+            else:
+                # cv2.imwrite(os.path.join(final_directory, 'article_{}.png'.format(idx)), article_mask)
+                article_complete = False
 
-        elif (ny-cy) < (nh+ch)*2 and (ny-cy) < 0: # next is not greater... must be invalid
-            print('Invalid Gap! {}'.format(idx))
-            # loop through contents and insert any valid ones in this gap
-            for idxx in range(len(contents_contours)):
-                [x, y, w, h] = cv2.boundingRect(contents_contours[idxx])
-                if cy-ch < y and cx-10 < x: # more than because it appears above but not too above
-                    # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
-                    # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
-                    contents = clear_contents_mask[y: y+h, x: x+w]
-                    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
-                    # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
-
-                    # check that it does not encounter new title in next column
-                    if y > ny:
-                        break
-
-            article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
-            article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
-
-            cv2.imwrite(os.path.join(final_directory, 'article_{}invalid.png'.format(idx)), article_mask)
-            article_complete = True
-
-        else: # must be first one with next invalid...
-            print('Invalid First Gap! {}'.format(idx))
-            # loop through contents and insert any valid ones in this gap
-            for idxx in range(len(contents_contours)):
-                [x, y, w, h] = cv2.boundingRect(contents_contours[idxx])
-                if cy-ch < y and cx-10 < x: # more than because it appears above but not too above
-                    # cv2.drawContours(clear_contents_mask, [c], -1, 0, -1)
-                    # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
-                    contents = clear_contents_mask[y: y+h, x: x+w]
-                    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
-                    image[y: y+h, x: x+w] = 255 # nullified the title contour on original image
-                    # cv2.putText(clear_contents_mask, "#{},x{},y{}".format(idxx, x, y), cv2.boundingRect(contours[idxx])[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [255, 153, 255], 2) # [B, G, R]
-
-                    # check that it does not encounter new title in next column
-                    if y > ny or nx-10 > x: # its lower in the page || the next title even with 10px offset is still larger... then we are tresspassing
-                        break
-
-            article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
-            article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
-
-            cv2.imwrite(os.path.join(final_directory, 'article_{}invalidfirst.png'.format(idx)), article_mask)
-            article_complete = True
+        if idx == 23:
+            sys.exit(0)
 
     print('Main code {} {}'.format(args.image, args.empty))
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+def cutouts(article_mask, clear_contents_mask, content_contour):
+    [x, y, w, h] = cv2.boundingRect(content_contour)
+    cv2.drawContours(article_mask, [content_contour], -1, 0, -1)
+    cv2.rectangle(article_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+    contents = clear_contents_mask[y: y+h, x: x+w]
+    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
+    return article_mask
 
 if __name__ == '__main__':
     # Instantiate the parser
