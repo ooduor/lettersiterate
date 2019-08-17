@@ -125,7 +125,7 @@ def main(args):
     contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_titles_mask = redraw_titles(image, contours)
 
-    draw_columns(leftmost_x, trimmed_mean, total_columns, clear_titles_mask)
+    # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_titles_mask)
     cv2.imwrite(os.path.join(final_directory, 'clear_titles_mask.png'), clear_titles_mask) # debug remove
 
     ### contents work
@@ -135,7 +135,7 @@ def main(args):
 
     contents_contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_contents_mask = redraw_contents(image_mask, contents_contours)
-    draw_columns(leftmost_x, trimmed_mean, total_columns, clear_contents_mask)
+    # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_contents_mask)
     cv2.imwrite(os.path.join(final_directory, 'clear_contents_mask.png'), clear_contents_mask)
 
     # start printing individual articles based on titles! The final act
@@ -150,12 +150,11 @@ def main(args):
     column_complete = False
     title_lines_count = 0
     col_no = 1 # initialize column number
-    avgwidth = trimmed_mean + leftmost_x # offset with beginning of first title
     x_adjustment = trimmed_mean
     title_came_up = True
     title_count = len(contours)
     ct_widths = []
-    print('Avg Width', trimmed_mean, "Total Columns", total_columns, "Leftmost", leftmost_x)
+    print('Avg Width', trimmed_mean, "Leftmost", leftmost_x)
     article_mask = np.ones(image.shape, dtype="uint8") * 255 # blank layer image for one article
     # for idx, contour in enumerate(contours):
     for idx, (_curr, _next) in enumerate(zip(contours[::],contours[1::])):
@@ -165,167 +164,78 @@ def main(args):
         [cx, cy, cw, ch] = cv2.boundingRect(_curr)
         [nx, ny, nw, nh] = cv2.boundingRect(_next)
 
-        column_complete = False # reset column_complete flag for complete articles
-        column_end = False # reset column_end flag for end of column
         barrier_title_width = nx + nw # initial width to block further content extraction
         barrier_title_height = ny # initial width to block further content extraction
         ct_height = cy+ch # title height in this column
-        # iterate all titles why they are not longer than the current title
-        print(f"COL_NO +++++++++++++++++++ {col_no} idx {idx}")
-        while col_no <= total_columns:
 
-            # for the first loop only, offset with beginning of first title
-            if col_no == 1:
-                left_boundary = 0
+        ct_widths.append(cx+cw)
+        ct_width = max(ct_widths) # adjust to get longest title width if multiple line title :)
 
-            print(f"@@@@@@@@ {idx} @@@@@@@@ {len(contours)}")
-            print(f"({cy} < {ny} and {ny-(nh*3)} < {cy} and {nx} < {avgwidth})")
-            ct_widths.append(cx+cw)
-            ct_width = max(ct_widths) # adjust to get longest title width if multiple line title :)
+        # dont proceed any further if the next title is right below it on same column
+        # continue to next title
+        # current and next have to be within the same column
+        # detect last article in the columns
+        if (idx+2) == title_count:
+            print("Going in for last one #{}".format(idx))
+            title_came_up = False
+        elif cy < ny and ny-(nh*3) < cy and nx < ct_width:
+            # 1) current title is above next
+            # 2) next title is directly above current
+            # 3) next title is withing the length of the current title. Cannot be in another column
+            # and considered directly below current. Phew!, it happened
+            title_came_up = True
+        else:
+            print("Going in for #{}".format(idx))
+            title_came_up = False
 
-            # dont proceed any further if the next title is right below it on same column
-            # continue to next title
-            # current and next have to be within the same column
-            # detect last article in the columns
-            if (idx+2) == title_count:
-                print("Going in for last one #{}".format(idx))
-                title_came_up = False
-            elif (cy < ny and ny-(nh*3) < cy and nx < avgwidth):
-                title_came_up = True
-                break
-            else:
-                print("Going in for #{}".format(idx))
-                print(f"({cy} < {ny} and {ny-(nh*3)} < {cy} and {nx} < {avgwidth})")
-                title_came_up = False
-
-            for tidx, tcontour in enumerate(contours):
-                [tx, ty, tw, th] = cv2.boundingRect(tcontour)
-
-                if tidx > idx:
-                    # only consider titles greater than current but within this column
-                    # and below current title
-                    if tx > left_boundary and tx < avgwidth and ty > ct_height:
-                        print(f"##{tidx} > #{idx} and {tx} > {left_boundary} and {tx} < {avgwidth} and {ty} > {ct_height}")
-                        # the first title encountered that begins in this column becomes the new barrier, ignore any other titles in the column
-                        # this will be the new barrier for any content starting (x) less than the barrier length...
-                        # Grab any content withing this boundary
-                        barrier_title_x = tx # initial x of the blocking title
-                        barrier_title_width = tx + tw # initial width to block further content extraction
-                        barrier_title_height = ty # initial width to block further content extraction
-                        print(f"{barrier_title_width} barrier_title_width, {barrier_title_height} barrier_title_height ")
-                        # loop through contents within these boundaries and insert them to the canvas
-                        for content_idx, content_contour in enumerate(contents_contours):
-                            [x, y, w, h] = cv2.boundingRect(content_contour)
-                            # length -50 is to be safe sometimes the content cut maybe infringe onto the next title
-                            if x >= left_boundary and x < avgwidth and (y+h)-50 < barrier_title_height and y+50 > ct_height:
-                                print(f"{x} >= {left_boundary} and {x} < {avgwidth} and {(y+h)-50} < {barrier_title_height} and {y} > {ct_height}")
-                                article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                                cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) #
-                                column_complete = True # set brakes to not go lower since we have encountered a title if we are here
-                                column_end = False
-
-                            # print if it is the last one. Sigh!
-                            if x >= left_boundary and x < avgwidth and (idx+2) == title_count and y+50 > ct_height:
-                                article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                                cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) #
-                                column_complete = True # set brakes to not go lower since we have encountered a title if we are here
-                                column_end = False
-
-                        if column_complete:
+        if not title_came_up:
+            title_encounters = 0
+            # loop through contents within these boundaries and insert them to the canvas
+            for content_idx, content_contour in enumerate(contents_contours):
+                [x, y, w, h] = cv2.boundingRect(content_contour)
+                content_width = x+w
+                # length -50 is to be safe sometimes the content cut maybe infringe onto the next title
+                # get any content that starts within the title (take out -50) and within the end of the title width
+                # and give (+50), it is still below the title
+                print(f"{x} >= {cx-50} and {x} <= {ct_width} and {y+50} > {ct_height}")
+                if x >= cx-50 and x <= ct_width and y+50 > ct_height:
+                    # now that we have limited the content to be within the width and below the title of interest
+                    # make sure it does not transgress into other titles. The bane of my existence begins, sigh!
+                    for tidx, tcontour in enumerate(contours):
+                        [tx, ty, tw, th] = cv2.boundingRect(tcontour)
+                        # validating titles that are directly below
+                        # 1) it has to be greater than the current title
+                        # 2) it starts within the width of the current title
+                        # 3) it starts within the width of the current content
+                        # 4) it does not start left of the content even if we take out 50 pixels to the left (-50)
+                        if tidx > idx and tx < ct_width and tx < content_width and tx > x-50 and title_encounters < 1:
+                            print(f"TITLE BELOW---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {content_width} and {cx} >= {x-50}")
+                            article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                            cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
+                            title_encounters += 1
+                            # hitting a title in this case means we don't need to go any further for current content
                             break
 
-                    # if there is no title starting within this boundaries the use the last standing boundaries to gather content
-                    else:
-                        # detect end of column first and write all contents
-                        if tx > ct_width and tidx == idx+1:
-                            # loop through contents within these boundaries and insert them to the canvas
-                            for content_idx, content_contour in enumerate(contents_contours):
-                                [x, y, w, h] = cv2.boundingRect(content_contour)
-                                print(f"============== {x} >= {cx} and {x} < {ct_width} and {y+50} > {ct_height}")
-                                if (x >= cx or x >= left_boundary) and x < ct_width and y+50 > ct_height: # +50 is for those contents again that cut out title
-                                    article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                                    cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) #
-                                    column_complete = True
-                                    column_end = True
-                        elif tidx > idx and tx > left_boundary and tx > avgwidth and ty > ct_height: # two part comment with first part full height
-                            # loop through contents within these boundaries and insert them to the canvas
-                            for content_idx, content_contour in enumerate(contents_contours):
-                                [x, y, w, h] = cv2.boundingRect(content_contour)
-                                if x >= left_boundary and x < avgwidth and y+50 > ct_height:
-                                    print(f"col_no {col_no} ##{tidx} ###{content_idx}||||||||||||====== {x} >= {cx} and {x} < {ct_width} and {y} > {ct_height}")
-                                    article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                                    cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) #
-                                    column_complete = True
-                                    column_end = True
-                        else:
-                            # write contents
-                            print(f"[[[ IN USE##{tidx} ]]] {barrier_title_width} barrier_title_width, {barrier_title_height} barrier_title_height ")
-                            # loop through contents within these boundaries and insert them to the canvas
-                            for content_idx, content_contour in enumerate(contents_contours):
-                                [x, y, w, h] = cv2.boundingRect(content_contour)
-                                if x > left_boundary and x < avgwidth and (y+h) < barrier_title_height and y > ct_height:
-                                    print(f"WE PRINTED === {content_idx}")
-                                    print(f"---> {x} > {left_boundary} and {x} < {avgwidth} and {(y+h)} < {barrier_title_height} and {y} > {ct_height}")
-                                    article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                                    cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) #
-                                    column_complete = True
+                        # validating titles that are on a different column
+                        # 1)it has to be greater than the current title
+                        # 2)it starts within the width of the current title
+                        # 3)it starts below this content but within the contents limits (meaning it is multicolumn extension)
+                        if tidx > idx and tx < ct_width and (ty > y and tx > x-50) and title_encounters < 1:
+                            print(f"TITLE DIFF COL---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {ct_width} and ({ty} > {y} and {tx} > {x-50})")
+                            article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                            cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
 
-                else:
-                    # we are here because the title is less than current title of consideration and
-                    # therefore ignored :)
-                    pass
-
-            if column_complete:
-                # a column exit was triggered from the inner loops...
-                # choose whether to trigger
-                if column_end:
-                    # no need to break because we are in the end we should let it continue
-                    # incase the article is long and continuing over multiple columns.
-                    if avgwidth < ct_width-50:
-                        print(f"!! {avgwidth} < {ct_width} !!")
-                        multicolumn = True
-                    else:
-                        multicolumn = False
-                        article_end = True
-
-                    col_no += 1
-                    left_boundary = avgwidth # store last width
-                    avgwidth += x_adjustment
-                    print(f"WHAT IS ARTICLE END? {left_boundary} left_boundary {col_no} col_no, {left_boundary} left_boundary, {avgwidth} avgwidth HA!!!!")
-                    if multicolumn:
-                        continue
-                    else:
-                        break
-                else:
-                    # this was triggered procedurally because with hit a title that became a barrier
-                    # we therefore don't want to move to next column unnecessarily. Ha!
-                    # if current title width is within boundary of this column, then we
-                    # should wrap this article up for writing
-                    if avgwidth > ct_width:
-                        article_end = True
-                        # therefore break from going to next columns before wrapping up
-                        break
-                    # if next title is not within this column then add increments
-                    elif nx >= avgwidth and left_boundary < nx:
-                        col_no += 1
-                        left_boundary = avgwidth # store last width
-                        avgwidth += x_adjustment
-                    else:
-                        article_end = False
-            else:
-                # article not complete...
-                pass
-
-            if article_end:
-                break
-
-            # get the boundaries of the current title
+                    # validating titles that are at the end of the column
+                    # 1) there is no title directly below it
+                    if all(x < cv2.boundingRect(tcontour)[0] for tidx, tcontour in enumerate(contours) if tidx > idx and cv2.boundingRect(tcontour)[0] > content_width) and title_encounters < 1:
+                        print(f"LAST COL---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {ct_width} and ({ty} > {y} and {tx} > {x-50})")
+                        article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                        cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
 
         if title_came_up:
             ct_widths.append(cx+cw)
             article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
-
             article_complete = False
         else:
             ct_widths = [] # reset widths
@@ -336,12 +246,10 @@ def main(args):
                 article_title_p = clear_titles_mask[ny: ny+nh, nx: nx+nw]
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
 
-            draw_columns(leftmost_x, trimmed_mean, total_columns, article_mask)
+            # draw_columns(leftmost_x, trimmed_mean, total_columns, article_mask)
             cv2.imwrite(os.path.join(final_directory, 'article_{}.png'.format(idx)), article_mask)
             article_complete = True
-            multicolumn = False # reset after a writing
 
-        print("Next start col_no ", col_no)
         if idx == 25:
             sys.exit(0)
 
@@ -356,23 +264,6 @@ def cutouts(article_mask, clear_contents_mask, content_contour):
     contents = clear_contents_mask[y: y+h, x: x+w]
     article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
     return article_mask
-
-def find_column(x_coord, trimmed_mean, leftmost_x, total_columns):
-    avgwidth = trimmed_mean + leftmost_x # offset with beginning of first title
-    x_adjustment = trimmed_mean
-
-    col_pos = None
-    col_no = 1
-    # iterate all titles why they are not longer than the current title
-    while col_no <= total_columns:
-        if x_coord <= avgwidth:
-            col_pos = col_no
-            break
-
-        col_no += 1
-        avgwidth += x_adjustment
-
-    return col_pos
 
 if __name__ == '__main__':
     # Instantiate the parser
