@@ -10,6 +10,8 @@ import imutils
 import numpy as np
 from scipy import stats
 from pythonRLSA import rlsa
+import pytesseract
+from PIL import Image
 
 from utils import lines_extraction, draw_lines, extract_polygons, \
     column_summaries, determine_precedence, redraw_titles, redraw_contents, \
@@ -247,8 +249,13 @@ def main(args):
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
 
             # draw_columns(leftmost_x, trimmed_mean, total_columns, article_mask)
-            cv2.imwrite(os.path.join(final_directory, 'article_{}.png'.format(idx)), article_mask)
+            file_name = f"article_{idx}"
+            cv2.imwrite(os.path.join(final_directory, f"{file_name}.png"), article_mask)
             article_complete = True
+
+            content = pytesseract.image_to_string(Image.fromarray(article_mask))
+            with open(os.path.join(final_directory, f'{file_name}.txt'), 'a') as the_file:
+                the_file.write(content)
 
         if idx == 25:
             sys.exit(0)
