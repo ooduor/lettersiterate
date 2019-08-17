@@ -22,6 +22,9 @@ def main(args):
     path_to_image = args.image
     empty_output = args.empty
 
+    image_name = os.path.basename(path_to_image)
+    image_sans_ext = os.path.splitext(image_name)[0]
+
     # check if file exists here and exist if not
     try:
         f = open(path_to_image)
@@ -245,12 +248,12 @@ def main(args):
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
 
             # draw_columns(leftmost_x, trimmed_mean, total_columns, article_mask)
-            file_name = f"article_{idx}"
-            cv2.imwrite(os.path.join(final_directory, f"{file_name}.png"), article_mask)
+            file_name = f"article-{idx}"
+            cv2.imwrite(os.path.join(final_directory, f"{image_sans_ext}-{file_name}.png"), article_mask)
             article_complete = True
 
             content = pytesseract.image_to_string(Image.fromarray(article_mask))
-            with open(os.path.join(final_directory, f'{file_name}.txt'), 'a') as the_file:
+            with open(os.path.join(final_directory, f'{image_sans_ext}-{file_name}.txt'), 'a') as the_file:
                 the_file.write(content)
 
         if idx == 25:
