@@ -104,12 +104,12 @@ def redraw_titles(image, contours):
 
     for idx, contour in enumerate(contours):
         [x, y, w, h] = cv2.boundingRect(contour)
-        cv2.drawContours(clear_titles_mask, [contour], -1, 0, -1)
-        cv2.rectangle(clear_titles_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+        # cv2.drawContours(clear_titles_mask, [contour], -1, 0, -1)
+        # cv2.rectangle(clear_titles_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
         titles = image[y: y+h, x: x+w]
         clear_titles_mask[y: y+h, x: x+w] = titles # copied titles contour onto the blank image
         image[y: y+h, x: x+w] = 255 # nullified the titles contour on original image
-        cv2.putText(clear_titles_mask, "#{},x{},y{},w{},h{}".format(idx, x, y, w, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
+        # cv2.putText(clear_titles_mask, "#{},x{},y{},w{},h{}".format(idx, x, y, w, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
 
     return clear_titles_mask
 
@@ -121,11 +121,11 @@ def redraw_contents(image, contours):
 
     for idx, contour in enumerate(contours):
         [x, y, w, h] = cv2.boundingRect(contour)
-        cv2.drawContours(clear_contents_mask, [contour], -1, 0, -1)
-        cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+        # cv2.drawContours(clear_contents_mask, [contour], -1, 0, -1)
+        # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
         contents = image[y: y+h, x: x+w]
         clear_contents_mask[y: y+h, x: x+w] = contents # copied contents contour onto the blank image
-        cv2.putText(clear_contents_mask, "#{},x{},y{},w{},h{}".format(idx, x, y, w, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
+        # cv2.putText(clear_contents_mask, "#{},x{},y{},w{},h{}".format(idx, x, y, w, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
 
     # cv2.imwrite('clear_contents_mask.png', clear_contents_mask) # debug remove
     return clear_contents_mask
@@ -137,3 +137,11 @@ def draw_columns(leftmost_x, trimmed_mean, total_columns, clear_titles_mask):
         cv2.line(clear_titles_mask, (x, 0), (x, 2000), (0,255,0), 2)
         counter+=1
         x+=trimmed_mean
+
+def cutouts(article_mask, clear_contents_mask, content_contour):
+    [x, y, w, h] = cv2.boundingRect(content_contour)
+    # cv2.drawContours(article_mask, [content_contour], -1, 0, -1)
+    # cv2.rectangle(article_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+    contents = clear_contents_mask[y: y+h, x: x+w]
+    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
+    return article_mask

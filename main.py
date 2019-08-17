@@ -15,7 +15,7 @@ from PIL import Image
 
 from utils import lines_extraction, draw_lines, extract_polygons, \
     column_summaries, determine_precedence, redraw_titles, redraw_contents, \
-    draw_columns
+    draw_columns, cutouts
 
 def main(args):
     # get params
@@ -211,9 +211,9 @@ def main(args):
                         # 3) it starts within the width of the current content
                         # 4) it does not start left of the content even if we take out 50 pixels to the left (-50)
                         if tidx > idx and tx < ct_width and tx < content_width and tx > x-50 and title_encounters < 1:
-                            print(f"TITLE BELOW---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {content_width} and {cx} >= {x-50}")
+                            # print(f"TITLE BELOW---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {content_width} and {cx} >= {x-50}")
                             article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                            cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
+                            # cv2.putText(article_mask, "###{content_idx},{x},{y}.{w},{h}", cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
                             title_encounters += 1
                             # hitting a title in this case means we don't need to go any further for current content
                             break
@@ -223,16 +223,12 @@ def main(args):
                         # 2)it starts within the width of the current title
                         # 3)it starts below this content but within the contents limits (meaning it is multicolumn extension)
                         if tidx > idx and tx < ct_width and (ty > y and tx > x-50) and title_encounters < 1:
-                            print(f"TITLE DIFF COL---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {ct_width} and ({ty} > {y} and {tx} > {x-50})")
                             article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                            cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
 
                     # validating titles that are at the end of the column
                     # 1) there is no title directly below it
                     if all(x < cv2.boundingRect(tcontour)[0] for tidx, tcontour in enumerate(contours) if tidx > idx and cv2.boundingRect(tcontour)[0] > content_width) and title_encounters < 1:
-                        print(f"LAST COL---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {ct_width} and ({ty} > {y} and {tx} > {x-50})")
                         article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                        cv2.putText(article_mask, "#{},x{},y{},w{},h{}".format(content_idx, x, y, w, h), cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
 
         if title_came_up:
             ct_widths.append(cx+cw)
@@ -263,14 +259,6 @@ def main(args):
     print('Main code {} {}'.format(args.image, args.empty))
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-
-def cutouts(article_mask, clear_contents_mask, content_contour):
-    [x, y, w, h] = cv2.boundingRect(content_contour)
-    cv2.drawContours(article_mask, [content_contour], -1, 0, -1)
-    cv2.rectangle(article_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
-    contents = clear_contents_mask[y: y+h, x: x+w]
-    article_mask[y: y+h, x: x+w] = contents # copied title contour onto the blank image
-    return article_mask
 
 if __name__ == '__main__':
     # Instantiate the parser
