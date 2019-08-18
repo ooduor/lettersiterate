@@ -152,14 +152,9 @@ def main(args):
     contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
 
     article_complete = False
-    column_complete = False
-    title_lines_count = 0
-    col_no = 1 # initialize column number
-    x_adjustment = trimmed_mean
     title_came_up = True
     title_count = len(contours)
     ct_widths = []
-    print('Avg Width', trimmed_mean, "Leftmost", leftmost_x)
     article_mask = np.ones(image.shape, dtype="uint8") * 255 # blank layer image for one article
     # for idx, contour in enumerate(contours):
     for idx, (_curr, _next) in enumerate(zip(contours[::],contours[1::])):
@@ -169,10 +164,7 @@ def main(args):
         [cx, cy, cw, ch] = cv2.boundingRect(_curr)
         [nx, ny, nw, nh] = cv2.boundingRect(_next)
 
-        barrier_title_width = nx + nw # initial width to block further content extraction
-        barrier_title_height = ny # initial width to block further content extraction
         ct_height = cy+ch # title height in this column
-
         ct_widths.append(cx+cw)
         ct_width = max(ct_widths) # adjust to get longest title width if multiple line title :)
 
@@ -181,7 +173,6 @@ def main(args):
         # current and next have to be within the same column
         # detect last article in the columns
         if (idx+2) == title_count:
-            print("Going in for last one #{}".format(idx))
             title_came_up = False
         elif cy < ny and ny-(nh*3) < cy and nx < ct_width:
             # 1) current title is above next
@@ -190,7 +181,6 @@ def main(args):
             # and considered directly below current. Phew!, it happened
             title_came_up = True
         else:
-            print("Going in for #{}".format(idx))
             title_came_up = False
 
         if not title_came_up:
@@ -247,7 +237,6 @@ def main(args):
                 article_title_p = clear_titles_mask[ny: ny+nh, nx: nx+nw]
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
 
-            # draw_columns(leftmost_x, trimmed_mean, total_columns, article_mask)
             file_name = f"article-{idx}"
             cv2.imwrite(os.path.join(final_directory, f"{image_sans_ext}-{file_name}.png"), article_mask)
             article_complete = True
@@ -257,8 +246,6 @@ def main(args):
                 the_file.write(content)
 
     print('Main code {} {}'.format(args.image, args.empty))
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     # Instantiate the parser
