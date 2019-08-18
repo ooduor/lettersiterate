@@ -30,7 +30,7 @@ def main(args):
         f = open(path_to_image)
         f.close()
     except FileNotFoundError:
-        print('Image given does not exist')
+        print('Given image does not exist')
         sys.exit(0)
 
     # create out dir
@@ -255,9 +255,6 @@ def main(args):
             content = pytesseract.image_to_string(Image.fromarray(article_mask))
             with open(os.path.join(final_directory, f'{image_sans_ext}-{file_name}.txt'), 'a') as the_file:
                 the_file.write(content)
-
-        if idx == 25:
-            sys.exit(0)
 
     print('Main code {} {}'.format(args.image, args.empty))
     cv2.waitKey(0)
