@@ -2,6 +2,8 @@
 import os
 import sys
 import glob
+import logging
+from pathlib import Path
 from pprint import pprint
 import math
 import argparse
@@ -17,11 +19,9 @@ from utils import lines_extraction, draw_lines, extract_polygons, \
     column_summaries, determine_precedence, redraw_titles, redraw_contents, \
     draw_columns, cutouts
 
-def main(args):
-    # get params
-    path_to_image = args.image
-    empty_output = args.empty
-
+def process_image(path_to_image, empty_output):
+    output_path = os.path.dirname(path_to_image)
+    last_folder_name = os.path.basename(output_path)
     image_name = os.path.basename(path_to_image)
     image_sans_ext = os.path.splitext(image_name)[0]
 
@@ -30,8 +30,10 @@ def main(args):
         f = open(path_to_image)
         f.close()
     except FileNotFoundError:
-        print('Given image does not exist')
+        logging.critical('Given image does not exist')
         sys.exit(0)
+
+    logging.info(f"Processing {image_name}")
 
     # create out dir
     current_directory = os.getcwd()
@@ -59,7 +61,7 @@ def main(args):
     # Noise removal step - Perform opening on the thresholded image (erosion followed by dilation)
     kernel = np.ones((2,2),np.uint8) # kernel noise size (2,2)
     im_bw = cv2.morphologyEx(im_bw, cv2.MORPH_OPEN, kernel) # cleans up random lines that appear on the page
-    cv2.imwrite('im_bw.png', ~im_bw)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-im-bw.png'), ~im_bw)
 
     # extract and draw any lines from the image
     lines_mask = draw_lines(image, gray)
@@ -103,20 +105,20 @@ def main(args):
 
     # run length smoothing algorithms for vertical and lateral conjoining of pixels
     value = math.ceil(sum(title_widths)/len(title_widths))*2
-    print('RLSA Title Value', value)
+    logging.info(f'RLSA Title Value {value}')
     rlsa_titles_mask = rlsa.rlsa(titles_mask, True, False, value) #rlsa application
     rlsa_titles_mask_for_final = rlsa_titles_mask
-    cv2.imwrite(os.path.join(final_directory, 'rlsa_titles_mask.png'), rlsa_titles_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-rlsa-titles-mask.png'), rlsa_titles_mask) # debug remove
 
     value = math.ceil(sum(content_widths)/len(content_widths))*3
-    print('RLSA Content Value', value)
+    logging.info(f'RLSA Content Value {value}')
     rlsa_contents_mask = rlsa.rlsa(contents_mask, False, True, value) #rlsa application
     rlsa_contents_mask_for_avg_width = rlsa_contents_mask
-    cv2.imwrite(os.path.join(final_directory, 'rlsa_contents_mask.png'), rlsa_contents_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-rlsa-contents-mask.png'), rlsa_contents_mask) # debug remove
 
     # get avg properties of columns
     contents_sum_list, contents_x_list, for_avgs_contours_mask = column_summaries(image, rlsa_contents_mask_for_avg_width)
-    cv2.imwrite(os.path.join(final_directory, 'for_avgs_contours_mask.png'), for_avgs_contours_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-for-avgs-contours-mask.png'), for_avgs_contours_mask) # debug remove
     trimmed_mean = int(stats.trim_mean(contents_sum_list, 0.1)) # trimmed mean
     leftmost_x = min(contents_x_list)
 
@@ -131,7 +133,7 @@ def main(args):
     clear_titles_mask = redraw_titles(image, contours)
 
     # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_titles_mask)
-    cv2.imwrite(os.path.join(final_directory, 'clear_titles_mask.png'), clear_titles_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-clear-titles-mask.png'), clear_titles_mask) # debug remove
 
     ### contents work
     (contours, _) = cv2.findContours(~rlsa_contents_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
@@ -141,7 +143,7 @@ def main(args):
     contents_contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_contents_mask = redraw_contents(image_mask, contents_contours)
     # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_contents_mask)
-    cv2.imwrite(os.path.join(final_directory, 'clear_contents_mask.png'), clear_contents_mask)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-clear-contents-mask.png'), clear_contents_mask)
 
     # start printing individual articles based on titles! The final act
     (contours, _) = cv2.findContours(~rlsa_titles_mask_for_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -192,7 +194,7 @@ def main(args):
                 # length -50 is to be safe sometimes the content cut maybe infringe onto the next title
                 # get any content that starts within the title (take out -50) and within the end of the title width
                 # and give (+50), it is still below the title
-                print(f"{x} >= {cx-50} and {x} <= {ct_width} and {y+50} > {ct_height}")
+                logging.debug(f"{x} >= {cx-50} and {x} <= {ct_width} and {y+50} > {ct_height}")
                 if x >= cx-50 and x <= ct_width and y+50 > ct_height:
                     # now that we have limited the content to be within the width and below the title of interest
                     # make sure it does not transgress into other titles. The bane of my existence begins, sigh!
@@ -238,22 +240,49 @@ def main(args):
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
 
             file_name = f"article-{idx}"
-            cv2.imwrite(os.path.join(final_directory, f"{image_sans_ext}-{file_name}.png"), article_mask)
+            if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f"{image_sans_ext}-{file_name}.png"), article_mask)
             article_complete = True
 
             content = pytesseract.image_to_string(Image.fromarray(article_mask))
             with open(os.path.join(final_directory, f'{image_sans_ext}-{file_name}.txt'), 'a') as the_file:
                 the_file.write(content)
 
+def main(args):
+    # get params
+    path_to_image = args.image
+    path_to_dir = args.dir
+    empty_output = args.empty
+
+    if path_to_dir:
+        for f in Path(path_to_dir).glob('**/*.png'):
+            f = str(f) # cast PosixPath to str
+            if "page-8" in f:
+                process_image(f, empty_output)
+    elif path_to_image:
+        process_image(path_to_image, empty_output)
+
     print('Main code {} {}'.format(args.image, args.empty))
 
 if __name__ == '__main__':
     # Instantiate the parser
     parser = argparse.ArgumentParser(prog="LettersIterate", description='Split Veritable Columns in a Newspaper Like Image')
-    parser.add_argument('image', type=str, help='Path to the image file') # Required positional argument
-    parser.add_argument('--empty', type=bool, help='An optional boolean argument to empty output folder before each processing', default=True) # Optional argument
+    parser.add_argument('--image', type=str, help='Path to the image file')
+    parser.add_argument('--dir', type=str, help='An optional path to directory with newspaper images') # Optional argument
+    parser.add_argument('--empty', dest='empty', action='store_true', help='An optional boolean argument to empty output folder before each processing')
+    parser.add_argument('--no-empty', dest='empty', action='store_false', help='An optional boolean argument to NOT empty output folder before each processing')
+    parser.add_argument('--debug', dest="loglevel", action='store_true', help='print debug messages to stderr')
     parser.add_argument('--version', action='version', version='%(prog)s 0.1')
     args = parser.parse_args()
+
+    if not args.image and not args.dir:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+
+    if args.loglevel:
+        logging.basicConfig(level=logging.DEBUG) # 10
+    else:
+        logging.basicConfig(level=logging.INFO) # 20
 
     # execute only if run as the entry point into the program
     main(args)

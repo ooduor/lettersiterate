@@ -6,6 +6,9 @@ __pycache__/
 # Ignore images dumped in the root of the folder
 *.png
 
+# Ignore Data folder
+DNIssues
+
 # C extensions
 *.so
 
