@@ -61,17 +61,21 @@ def process_image(path_to_image, empty_output):
     # Noise removal step - Perform opening on the thresholded image (erosion followed by dilation)
     kernel = np.ones((2,2),np.uint8) # kernel noise size (2,2)
     im_bw = cv2.morphologyEx(im_bw, cv2.MORPH_OPEN, kernel) # cleans up random lines that appear on the page
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-im-negative.png'), im_bw)
     if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-im-bw.png'), ~im_bw)
 
     # extract and draw any lines from the image
     lines_mask = draw_lines(image, gray)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-lines-mask.png'), lines_mask) # debug remove
 
     # extract complete shapes likes boxes of ads and banners
     found_polygons_mask = extract_polygons(im_bw, lines_mask)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-found-polygons-mask.png'), found_polygons_mask) # debug remove
 
     # nullifying the mask of unwanted polygons over binary (toss images)
     # this should not only have texts, without images
     text_im_bw = cv2.bitwise_and(im_bw, im_bw, mask=found_polygons_mask)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-text-im-bw-negative.png'), text_im_bw)
 
     # initialize blank image for extracted titles
     titles_mask = np.ones(image.shape[:2], dtype="uint8") * 255
@@ -83,6 +87,7 @@ def process_image(path_to_image, empty_output):
 
     title_widths = []
     content_widths = []
+    debug_contents_mask = np.ones(image.shape, dtype="uint8") * 255 # blank 3 layer image for debug colour
     # finding the larger text
     for c in contours:
         [x,y,w,h] = cv2.boundingRect(c)
@@ -94,6 +99,9 @@ def process_image(path_to_image, empty_output):
             # get the biggest chunks of texts... articles!
             cv2.drawContours(contents_mask, [c], -1, 0, -1)
             content_widths.append(w)
+        cv2.drawContours(debug_contents_mask, [c], -1, 0, -1)
+        cv2.rectangle(debug_contents_mask, (x,y), (x+w,y+h), (0, 255, 0), 1)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-debug_drawn_contours.png'), debug_contents_mask)
 
     # helps further detach titles if necessary. This step can be removed
     # titles_mask = cv2.erode(titles_mask, kernel, iterations = 1)
@@ -143,7 +151,7 @@ def process_image(path_to_image, empty_output):
     contents_contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_contents_mask = redraw_contents(image_mask, contents_contours)
     # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_contents_mask)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-clear-contents-mask.png'), clear_contents_mask)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-sorted-clear-contents-mask.png'), clear_contents_mask)
 
     # start printing individual articles based on titles! The final act
     (contours, _) = cv2.findContours(~rlsa_titles_mask_for_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -239,7 +247,7 @@ def process_image(path_to_image, empty_output):
                 article_title_p = clear_titles_mask[ny: ny+nh, nx: nx+nw]
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
 
-            file_name = f"article-{idx}"
+            file_name = f"article-{str(idx).zfill(2)}"
             if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f"{image_sans_ext}-{file_name}.png"), article_mask)
             article_complete = True
 

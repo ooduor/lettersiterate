@@ -2,11 +2,25 @@ import cv2
 from typing import List, Dict
 import numpy as np
 
+def auto_canny(image, sigma=0.33):
+    # Adrian Rosebrock, Zero-parameter, automatic Canny edge detection with Python and OpenCV, PyImageSearch, https://www.pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/, accessed on 22 Oct 2019
+	# compute the median of the single channel pixel intensities
+	v = np.median(image)
+
+	# apply automatic Canny edge detection using the computed median
+	lower = int(max(0, (1.0 - sigma) * v))
+	upper = int(min(255, (1.0 + sigma) * v))
+	edged = cv2.Canny(image, lower, upper)
+
+	# return the edged image
+	return edged
+
 def lines_extraction(gray: List[int]) -> List[int]:
     """
     This function extracts the lines from the binary image. Cleaning process.
     """
-    edges = cv2.Canny(gray, 50, 150)
+    # edges = cv2.Canny(gray, 50, 150)
+    edges = auto_canny(gray)
     rho_res = 1 # [pixels]
     theta_res = np.pi/180 # [radians]
     threshold = 50 # number of votes to be considered a line
@@ -41,15 +55,23 @@ def extract_polygons(im_bw, lines_mask):
     areas = [cv2.contourArea(c) for c in contours]
     avgArea = sum(areas)/len(areas)
     for c in contours:
-        # [x, y, w, h] = cv2.boundingRect(c)
+        [x, y, w, h] = cv2.boundingRect(c)
         if cv2.contourArea(c) > 100*avgArea:
             cv2.drawContours(lines_mask, [c], -1, 0, -1)
-            # cv2.rectangle(lines_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+            # cv2.rectangle(lines_mask, (x,y), (x+w,y+h), (0, 255, 0), 5)
             # cv2.putText(lines_mask, "x{},y{},w{},h{}".format(x, y, w, h), cv2.boundingRect(c)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]
 
     return lines_mask
 
 def column_summaries(image, rlsa_mask):
+    """Calculate average properties on column-width contours found in the contents
+    mask.
+    image binary image of the layout page used to extract a blank mask
+    rlsa_mask the contents mask with contours
+
+    returns 3 variables with the widths of the contours, the starting position on the page
+    image as a x-coordinate and a mask of the contours.
+    """
     (for_avgs_contours, _) = cv2.findContours(~rlsa_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for_avgs_contours_mask = np.ones(image.shape, dtype="uint8") * 255 # blank 3 layer image
     contents_sum_list = []
@@ -60,8 +82,8 @@ def column_summaries(image, rlsa_mask):
         # apply some heuristic to different other stranger things masquerading as titles
         if w*h > 1500: # remove tiny contours the dirtify the image
             cv2.drawContours(for_avgs_contours_mask, [contour], -1, 0, -1)
-            cv2.rectangle(for_avgs_contours_mask, (x,y), (x+w,y+h), (255, 0, 0), 5)
-            cv2.putText(for_avgs_contours_mask, "#{},x{},y{},w{}".format(idx, x, y, w), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 2.0, [0, 0, 255], 2) # [B, G, R]
+            cv2.rectangle(for_avgs_contours_mask, (x,y), (x+w,y+h), (0, 255, 0), 5)
+            cv2.putText(for_avgs_contours_mask, "#{},x{},y{},h{},w{}".format(idx, x, y, h, w), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.6, [255, 0, 0], 2) # [B, G, R]
             contents_sum_list.append(w)
             contents_x_list.append(x)
             contents_length += 1
@@ -122,7 +144,7 @@ def redraw_contents(image, contours):
     for idx, contour in enumerate(contours):
         [x, y, w, h] = cv2.boundingRect(contour)
         # cv2.drawContours(clear_contents_mask, [contour], -1, 0, -1)
-        # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 0, 255), 3)
+        # cv2.rectangle(clear_contents_mask, (x,y), (x+w,y+h), (0, 255, 0), 3)
         contents = image[y: y+h, x: x+w]
         clear_contents_mask[y: y+h, x: x+w] = contents # copied contents contour onto the blank image
         # cv2.putText(clear_contents_mask, "#{},x{},y{},w{},h{}".format(idx, x, y, w, h), cv2.boundingRect(contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2) # [B, G, R]

@@ -5,3 +5,30 @@ pip freeze –local > requirements.txt
 
 # Reverse
 pip install -r requirements.txt
+
+# Running Matplotlib on terminal as seen on
+# https://stackoverflow.com/questions/56656777/userwarning-matplotlib-is-currently-using-agg-which-is-a-non-gui-backend-so
+sudo apt-get install python3-tk
+
+# Anaconda
+conda install -c conda-forge spacy
+
+# Jupyter Notebooks on VSCode
+https://code.visualstudio.com/docs/python/jupyter-support
+
+# parse dates in text mining
+https://github.com/akoumjian/datefinder
+https://codereview.stackexchange.com/questions/172921/parse-through-text-and-extract-dates-in-uniform-format
+
+# Tutorials
+https://www.machinelearningplus.com/nlp/gensim-tutorial/
+https://rare-technologies.com/data-streaming-in-python-generators-iterators-iterables/
+https://stackabuse.com/python-for-nlp-working-with-the-gensim-library-part-1/
+https://stackabuse.com/read-a-file-line-by-line-in-python/
+
+https://nlpforhackers.io/named-entity-extraction/
+
+https://nlpforhackers.io/topic-modeling/
+https://nlpforhackers.io/textrank-text-summarization/
+
+https://medium.com/@oribarel/getting-the-most-out-of-your-google-colab-2b0585f82403
