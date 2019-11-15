@@ -29,6 +29,7 @@ def process_txt(path_to_txt, pre_text_path, empty_output):
 
     logging.info(f"Processing {path_to_txt}")
 
+    # nested withs https://stackoverflow.com/a/9283052/754432
     with open(pre_text_path, 'w') as outfile, open(path_to_txt, 'r', encoding='utf-8') as infile:
         infile = infile.read().lower()
 
@@ -77,12 +78,13 @@ def main(args):
 
     # create out dir
     current_directory = os.getcwd()
-    last_folder_name = os.path.basename(path_to_dir)
-    final_directory = os.path.join(current_directory, f'TXT_PRE/{last_folder_name}')
-    if not os.path.exists(final_directory):
-        os.makedirs(final_directory)
 
     if path_to_dir:
+        last_folder_name = os.path.basename(path_to_dir)
+        final_directory = os.path.join(current_directory, f'TXT_PRE/{last_folder_name}')
+        if not os.path.exists(final_directory):
+            os.makedirs(final_directory)
+        
         for f in Path(path_to_dir).glob('**/*.txt'):
             txt_path = str(f) # cast PosixPath to str
             txt_name = os.path.basename(txt_path)
@@ -101,11 +103,15 @@ def main(args):
         txt_name = os.path.basename(path_to_txt)
         txt_sans_ext = os.path.splitext(txt_name)[0]
 
+        final_directory = os.path.join(current_directory, f'TXT_PRE/{last_folder_name}')
+        if not os.path.exists(final_directory):
+            os.makedirs(final_directory)
+
         pre_text_path = os.path.join(final_directory, f'{txt_sans_ext}-PRE.txt')
 
         process_txt(path_to_txt, pre_text_path, empty_output)
 
-    print('Main code {} {}'.format(args.txt, args.empty))
+    print('Main code {}'.format(args))
 
 if __name__ == '__main__':
     # Instantiate the parser

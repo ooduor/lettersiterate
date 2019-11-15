@@ -28,7 +28,7 @@ Image quality and size affects the output. Minimum recommended width for best re
 
 ## Text Pre-processing and cleaning step
 
-`./txt_pre_proc.py  --txt TXT/1975/dds-89458-page-8-article-3.txt --debu`
+`./txt_pre_proc.py  --txt TXT/1975/dds-89458-page-8-article-3.txt --debug`
 
 `./txt_pre_proc.py  --dir TXT/1975 --debug`
 
