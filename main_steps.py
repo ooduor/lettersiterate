@@ -87,7 +87,7 @@ def process_image(path_to_image, empty_output):
 
     title_widths = []
     content_widths = []
-    debug_contents_mask = np.ones(image.shape, dtype="uint8") * 255 # blank 3 layer image for debug colour
+    if logging.getLogger().level == logging.DEBUG: debug_contents_mask = np.ones(image.shape, dtype="uint8") * 255 # blank 3 layer image for debug colour
     # finding the larger text
     for c in contours:
         [x,y,w,h] = cv2.boundingRect(c)
@@ -99,8 +99,9 @@ def process_image(path_to_image, empty_output):
             # get the biggest chunks of texts... articles!
             cv2.drawContours(contents_mask, [c], -1, 0, -1)
             content_widths.append(w)
-        cv2.drawContours(debug_contents_mask, [c], -1, 0, -1)
-        cv2.rectangle(debug_contents_mask, (x,y), (x+w,y+h), (0, 255, 0), 1)
+        if logging.getLogger().level == logging.DEBUG:
+            cv2.drawContours(debug_contents_mask, [c], -1, 0, -1)
+            cv2.rectangle(debug_contents_mask, (x,y), (x+w,y+h), (0, 255, 0), 1)
     if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-debug_drawn_contours.png'), debug_contents_mask)
 
     # helps further detach titles if necessary. This step can be removed
