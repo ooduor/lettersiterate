@@ -26,11 +26,25 @@ Image quality and size affects the output. Minimum recommended width for best re
 
 `./main.py --image test/dds-89475-page-8.png --empty --debug`
 
+Processing full column pages
+
+`./extract_letters.py --dir test --no-empty`
+
+`./extract_letters.py --dir ../DNIssues/PNG/1974 --no-empty`
+
 ## Text Pre-processing and cleaning step
 
 `./txt_pre_proc.py  --txt TXT/1975/dds-89458-page-8-article-3.txt --debug`
 
 `./txt_pre_proc.py  --dir TXT/1975 --debug`
+
+## Notebooks
+
+Run specific notebook
+
+https://jupyter.readthedocs.io/en/latest/running.html
+
+`jupyter notebook notebook.ipynb`
 
 ## Gotchas
 

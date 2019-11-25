@@ -40,6 +40,7 @@ def process_txt(path_to_txt, pre_text_path, empty_output):
         infile = re.sub(r'(\w)\.(\w)', "i", infile) # period character inside a word is often closer to 'i' than any other alphabet character for purposes of spelling correction
 
         WORDS = Counter(words(infile))
+        WORDS = [word for word in WORDS if len(word) < 20] # Fix script killer in 1974/ds-89171-page-8-article-17.txt
 
         spell = SpellChecker()  # loads default word frequency list
 
