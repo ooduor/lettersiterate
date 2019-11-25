@@ -5,6 +5,7 @@ import glob
 import logging
 from pathlib import Path
 from pprint import pprint
+from datetime import datetime
 import math
 import argparse
 import cv2
@@ -14,6 +15,7 @@ from scipy import stats
 from pythonRLSA import rlsa
 import pytesseract
 from PIL import Image
+import xml.etree.cElementTree as ET
 
 from utils import lines_extraction, draw_lines, extract_polygons, \
     column_summaries, determine_precedence, redraw_titles, redraw_contents, \
@@ -41,6 +43,11 @@ def process_image(path_to_image, empty_output):
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
 
+    founds = glob.glob(f'{final_directory}/{image_sans_ext}-*.xml')
+    if len(founds) > 0:
+        logging.info(f"FILE EXISTS: {founds}")
+        return
+
     # standardize size of the images maintaining aspect ratio
     if empty_output:
         files = glob.glob('{}/*'.format(final_directory))
@@ -49,11 +56,15 @@ def process_image(path_to_image, empty_output):
 
     image = cv2.imread(path_to_image) #reading the image
 
+    image_height = image.shape[0]
     image_width = image.shape[1]
     if image_width != 2048:
         image = imutils.resize(image, width=2048)
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # converting to grayscale image
+    # applying thresholding technique on the grayscale image 
+    # all pixels value above 0 will be set to 255 but because we are using THRESH_OTSU
+    # we have avoid have to set threshold (i.e. 0 = just a placeholder) since otsu's method does it automatically
     (thresh, im_bw) = cv2.threshold(gray,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU) # converting to binary image
     # invert image data using unary tilde operator
     # im_bw = ~im_bw
@@ -167,11 +178,38 @@ def process_image(path_to_image, empty_output):
     title_count = len(contours)
     ct_widths = []
     article_mask = np.ones(image.shape, dtype="uint8") * 255 # blank layer image for one article
+    letter_root = ET.Element("letter")
+
+    desc = ET.SubElement(letter_root, "description")
+    ET.SubElement(desc, "MeasurementUnit").text = "pixel"
+    ocv_proc = ET.SubElement(desc, "OPenCVProcessing", pageImage=image_sans_ext)
+    ET.SubElement(ocv_proc, "ProcessingDateTime").text = str(datetime.today())
+    ET.SubElement(ocv_proc, "Script").text = 'Lettersiterate'
+
+    layout = ET.SubElement(letter_root, "Layout")
+    page = ET.SubElement(layout, "Page")
+    print_space = ET.SubElement(page, "PrintSpace", height=str(image_height), width=str(image_width), xpos=str(0), ypos=str(0))
+    # ET.Element(print_space, attrib={'height':image_height, 'width':image_width, 'xpos':0, 'ypos':0})
+
     # for idx, contour in enumerate(contours):
     for idx, (_curr, _next) in enumerate(zip(contours[::],contours[1::])):
         # https://www.quora.com/How-do-I-iterate-through-a-list-in-python-while-comparing-the-values-at-adjacent-indices/answer/Jignasha-Patel-14
         if article_complete:
             article_mask = np.ones(image.shape, dtype="uint8") * 255 # blank layer image for antother separate article
+
+            # xml file
+            letter_root = ET.Element("letter")
+
+            desc = ET.SubElement(letter_root, "description")
+            ET.SubElement(desc, "MeasurementUnit").text = "pixel"
+            ocv_proc = ET.SubElement(desc, "OPenCVProcessing")
+            ET.SubElement(ocv_proc, "ProcessingDateTime").text = str(datetime.today())
+            ET.SubElement(ocv_proc, "Script").text = 'Lettersiterate'
+
+            layout = ET.SubElement(letter_root, "Layout")
+            page = ET.SubElement(layout, "Page")
+            print_space = ET.SubElement(page, "PrintSpace", height=str(image_height), width=str(image_width), xpos=str(0), ypos=str(0))
+
         [cx, cy, cw, ch] = cv2.boundingRect(_curr)
         [nx, ny, nw, nh] = cv2.boundingRect(_next)
 
@@ -217,6 +255,7 @@ def process_image(path_to_image, empty_output):
                         if tidx > idx and tx < ct_width and tx < content_width and tx > x-50 and title_encounters < 1:
                             # print(f"TITLE BELOW---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {content_width} and {cx} >= {x-50}")
                             article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                            ET.SubElement(print_space, "Content", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), contentContourId=str(content_idx))
                             # cv2.putText(article_mask, "###{content_idx},{x},{y}.{w},{h}", cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
                             title_encounters += 1
                             # hitting a title in this case means we don't need to go any further for current content
@@ -228,21 +267,25 @@ def process_image(path_to_image, empty_output):
                         # 3)it starts below this content but within the contents limits (meaning it is multicolumn extension)
                         if tidx > idx and tx < ct_width and (ty > y and tx > x-50) and title_encounters < 1:
                             article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                            ET.SubElement(print_space, "Content", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), contentContourId=str(content_idx))
 
                     # validating titles that are at the end of the column
                     # 1) there is no title directly below it
                     if all(x < cv2.boundingRect(tcontour)[0] for tidx, tcontour in enumerate(contours) if tidx > idx and cv2.boundingRect(tcontour)[0] > content_width) and title_encounters < 1:
                         article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
+                        ET.SubElement(print_space, "Content", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), contentContourId=str(content_idx))
 
         if title_came_up:
             ct_widths.append(cx+cw)
             article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
+            ET.SubElement(print_space, "Title", height=str(ch), width=str(cw), xpos=str(cx), ypos=str(cy), contourId=str(idx))
             article_complete = False
         else:
             ct_widths = [] # reset widths
             article_title_p = clear_titles_mask[cy: cy+ch, cx: cx+cw]
             article_mask[cy: cy+ch, cx: cx+cw] = article_title_p # copied title contour onto the blank image
+            ET.SubElement(print_space, "Title", height=str(ch), width=str(cw), xpos=str(cx), ypos=str(cy), contourId=str(idx))
 
             if (idx+2) == title_count: # we are at the end
                 article_title_p = clear_titles_mask[ny: ny+nh, nx: nx+nw]
@@ -253,8 +296,13 @@ def process_image(path_to_image, empty_output):
             article_complete = True
 
             content = pytesseract.image_to_string(Image.fromarray(article_mask))
-            with open(os.path.join(final_directory, f'{image_sans_ext}-{file_name}.txt'), 'a') as the_file:
-                the_file.write(content)
+            # with open(os.path.join(final_directory, f'{image_sans_ext}-{file_name}.txt'), 'a') as the_file:
+            #     the_file.write(content)
+            ET.SubElement(page, "TextBlock", articleNo=str(file_name), contourId=str(idx)).text = content
+
+            tree = ET.ElementTree(letter_root)
+            xml_output_file = os.path.join(final_directory, f'{image_sans_ext}-{file_name}.xml')
+            tree.write(xml_output_file)
 
 def main(args):
     # get params
@@ -263,11 +311,16 @@ def main(args):
     empty_output = args.empty
 
     if path_to_dir:
-        for f in Path(path_to_dir).glob('**/*.png'):
+        for f in sorted(Path(path_to_dir).glob('**/*.png')):
             f = str(f) # cast PosixPath to str
             if "page-8" in f:
                 process_image(f, empty_output)
     elif path_to_image:
+        output_path = os.path.dirname(path_to_image)
+        last_folder_name = os.path.basename(output_path)
+        txt_name = os.path.basename(path_to_image)
+        txt_sans_ext = os.path.splitext(txt_name)[0]
+
         process_image(path_to_image, empty_output)
 
     print('Main code {} {}'.format(args.image, args.empty))
