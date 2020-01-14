@@ -62,9 +62,10 @@ def process_txt(path_to_txt, pre_text_path, empty_output):
             print("SRE ERROR:", err)
         except Exception as err:
             print("GENERAL ERROR:", err, type(err))
+            str_out = infile
         finally:
             # SIGH! Just return the lightly cleaned text for this one
-            str_out = infile
+            pass
 
         #  str_out = re.sub(r'\b(\w+)\b', lambda m:auto_corrects.get(m.group(1), m.group(1)), f_read)
         if logging.getLogger().level == logging.DEBUG: print(str_out)
@@ -86,7 +87,7 @@ def main(args):
         final_directory = os.path.join(current_directory, f'TXT_PRE/{last_folder_name}')
         if not os.path.exists(final_directory):
             os.makedirs(final_directory)
-        
+
         for f in sorted(Path(path_to_dir).glob('**/*.txt')):
             txt_path = str(f) # cast PosixPath to str
             txt_name = os.path.basename(txt_path)
