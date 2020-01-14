@@ -60,6 +60,7 @@ def process_txt(path_to_txt, pre_text_path, empty_output):
             str_out = re.sub(r'\b(%s)\b' % '|'.join(auto_corrects.keys()), lambda m:auto_corrects.get(m.group(1), m.group(1)), infile)
         except sre_constants.error as err:
             print("SRE ERROR:", err)
+            str_out = infile
         except Exception as err:
             print("GENERAL ERROR:", err, type(err))
             str_out = infile
@@ -119,8 +120,8 @@ def main(args):
 if __name__ == '__main__':
     # Instantiate the parser
     parser = argparse.ArgumentParser(prog="LettersIterate", description="Pre-processing to correct 'misspelled' words in the corpora")
-    parser.add_argument('--txt', type=str, help='Path to the .txt file')
-    parser.add_argument('--dir', type=str, help='An optional path to directory with letter .txt files') # Optional argument
+    parser.add_argument('--txt', type=str, help='Path to the .txt file. USAGE `./txt_pre_proc.py  --txt output/dds-89412-page-8-article-21.txt --debug`')
+    parser.add_argument('--dir', type=str, help='An optional path to directory with letter .txt files. USAGE `./txt_pre_proc.py --dir TXT/1974 --debug`') # Optional argument
     parser.add_argument('--empty', dest='empty', action='store_true', help='An optional boolean argument to empty output folder before each processing')
     parser.add_argument('--no-empty', dest='empty', action='store_false', help='An optional boolean argument to NOT empty output folder before each processing')
     parser.add_argument('--debug', dest="loglevel", action='store_true', help='print debug messages to stderr')
