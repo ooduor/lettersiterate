@@ -16,12 +16,13 @@ from pythonRLSA import rlsa
 import pytesseract
 from PIL import Image
 import xml.etree.cElementTree as ET
+from xml.dom import minidom
 
 from utils import lines_extraction, draw_lines, extract_polygons, \
     column_summaries, determine_precedence, redraw_titles, redraw_contents, \
     draw_columns, cutouts
 
-def process_image(path_to_image, empty_output):
+def process_image(path_to_image, empty_output, output_dir):
     output_path = os.path.dirname(path_to_image)
     last_folder_name = os.path.basename(output_path)
     image_name = os.path.basename(path_to_image)
@@ -37,20 +38,14 @@ def process_image(path_to_image, empty_output):
 
     logging.info(f"Processing {image_name}")
 
-    # create out dir
-    current_directory = os.getcwd()
-    final_directory = os.path.join(current_directory, r'output')
-    if not os.path.exists(final_directory):
-        os.makedirs(final_directory)
-
-    founds = glob.glob(f'{final_directory}/{image_sans_ext}-*.xml')
+    founds = glob.glob(f'{output_dir}/{image_sans_ext}-*.xml')
     if len(founds) > 0:
         logging.info(f"FILE EXISTS: {founds}")
         return
 
     # standardize size of the images maintaining aspect ratio
     if empty_output:
-        files = glob.glob('{}/*'.format(final_directory))
+        files = glob.glob('{}/*'.format(output_dir))
         for f in files:
             os.remove(f)
 
@@ -62,7 +57,7 @@ def process_image(path_to_image, empty_output):
         image = imutils.resize(image, width=2048)
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # converting to grayscale image
-    # applying thresholding technique on the grayscale image 
+    # applying thresholding technique on the grayscale image
     # all pixels value above 0 will be set to 255 but because we are using THRESH_OTSU
     # we have avoid have to set threshold (i.e. 0 = just a placeholder) since otsu's method does it automatically
     (thresh, im_bw) = cv2.threshold(gray,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU) # converting to binary image
@@ -72,21 +67,21 @@ def process_image(path_to_image, empty_output):
     # Noise removal step - Perform opening on the thresholded image (erosion followed by dilation)
     kernel = np.ones((2,2),np.uint8) # kernel noise size (2,2)
     im_bw = cv2.morphologyEx(im_bw, cv2.MORPH_OPEN, kernel) # cleans up random lines that appear on the page
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-im-negative.png'), im_bw)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-im-bw.png'), ~im_bw)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-im-negative.png'), im_bw)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-im-bw.png'), ~im_bw)
 
     # extract and draw any lines from the image
     lines_mask = draw_lines(image, gray)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-lines-mask.png'), lines_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-lines-mask.png'), lines_mask) # debug remove
 
     # extract complete shapes likes boxes of ads and banners
     found_polygons_mask = extract_polygons(im_bw, lines_mask)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-found-polygons-mask.png'), found_polygons_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-found-polygons-mask.png'), found_polygons_mask) # debug remove
 
     # nullifying the mask of unwanted polygons over binary (toss images)
     # this should not only have texts, without images
     text_im_bw = cv2.bitwise_and(im_bw, im_bw, mask=found_polygons_mask)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-text-im-bw-negative.png'), text_im_bw)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-text-im-bw-negative.png'), ~text_im_bw)
 
     # initialize blank image for extracted titles
     titles_mask = np.ones(image.shape[:2], dtype="uint8") * 255
@@ -113,7 +108,7 @@ def process_image(path_to_image, empty_output):
         if logging.getLogger().level == logging.DEBUG:
             cv2.drawContours(debug_contents_mask, [c], -1, 0, -1)
             cv2.rectangle(debug_contents_mask, (x,y), (x+w,y+h), (0, 255, 0), 1)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-debug_drawn_contours.png'), debug_contents_mask)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-debug_drawn_contours.png'), debug_contents_mask)
 
     # helps further detach titles if necessary. This step can be removed
     # titles_mask = cv2.erode(titles_mask, kernel, iterations = 1)
@@ -128,17 +123,17 @@ def process_image(path_to_image, empty_output):
     logging.info(f'RLSA Title Value {value}')
     rlsa_titles_mask = rlsa.rlsa(titles_mask, True, False, value) #rlsa application
     rlsa_titles_mask_for_final = rlsa_titles_mask
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-rlsa-titles-mask.png'), rlsa_titles_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-rlsa-titles-mask.png'), rlsa_titles_mask) # debug remove
 
     value = math.ceil(sum(content_widths)/len(content_widths))*3
     logging.info(f'RLSA Content Value {value}')
     rlsa_contents_mask = rlsa.rlsa(contents_mask, False, True, value) #rlsa application
     rlsa_contents_mask_for_avg_width = rlsa_contents_mask
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-rlsa-contents-mask.png'), rlsa_contents_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-rlsa-contents-mask.png'), rlsa_contents_mask) # debug remove
 
     # get avg properties of columns
     contents_sum_list, contents_x_list, for_avgs_contours_mask = column_summaries(image, rlsa_contents_mask_for_avg_width)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-for-avgs-contours-mask.png'), for_avgs_contours_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-for-avgs-contours-mask.png'), for_avgs_contours_mask) # debug remove
     trimmed_mean = int(stats.trim_mean(contents_sum_list, 0.1)) # trimmed mean
     leftmost_x = min(contents_x_list)
 
@@ -153,7 +148,7 @@ def process_image(path_to_image, empty_output):
     clear_titles_mask = redraw_titles(image, contours)
 
     # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_titles_mask)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-clear-titles-mask.png'), clear_titles_mask) # debug remove
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-clear-titles-mask.png'), clear_titles_mask) # debug remove
 
     ### contents work
     (contours, _) = cv2.findContours(~rlsa_contents_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
@@ -163,9 +158,9 @@ def process_image(path_to_image, empty_output):
     contents_contours = sorted(nt_contours, key=lambda contour:determine_precedence(contour, total_columns, trimmed_mean, leftmost_x, m_height))
     clear_contents_mask = redraw_contents(image_mask, contents_contours)
     # draw_columns(leftmost_x, trimmed_mean, total_columns, clear_contents_mask)
-    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f'{image_sans_ext}-sorted-clear-contents-mask.png'), clear_contents_mask)
+    if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f'{image_sans_ext}-sorted-clear-contents-mask.png'), clear_contents_mask)
 
-    # start printing individual articles based on titles! The final act
+    # start printing individual letters based on titles! The final act
     (contours, _) = cv2.findContours(~rlsa_titles_mask_for_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # apply some heuristic to different other stranger things masquerading as titles
@@ -195,7 +190,7 @@ def process_image(path_to_image, empty_output):
     for idx, (_curr, _next) in enumerate(zip(contours[::],contours[1::])):
         # https://www.quora.com/How-do-I-iterate-through-a-list-in-python-while-comparing-the-values-at-adjacent-indices/answer/Jignasha-Patel-14
         if article_complete:
-            article_mask = np.ones(image.shape, dtype="uint8") * 255 # blank layer image for antother separate article
+            article_mask = np.ones(image.shape, dtype="uint8") * 255 # blank layer image for another separate letter
 
             # xml file
             letter_root = ET.Element("letter")
@@ -255,7 +250,7 @@ def process_image(path_to_image, empty_output):
                         if tidx > idx and tx < ct_width and tx < content_width and tx > x-50 and title_encounters < 1:
                             # print(f"TITLE BELOW---> ###{content_idx} ##{tidx} > #{idx} and {tx} < {content_width} and {cx} >= {x-50}")
                             article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                            ET.SubElement(print_space, "Content", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), contentContourId=str(content_idx))
+                            ET.SubElement(print_space, "BodyText", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), bodyTextContourId=str(content_idx))
                             # cv2.putText(article_mask, "###{content_idx},{x},{y}.{w},{h}", cv2.boundingRect(content_contour)[:2], cv2.FONT_HERSHEY_PLAIN, 1.50, [255, 0, 0], 2)
                             title_encounters += 1
                             # hitting a title in this case means we don't need to go any further for current content
@@ -267,13 +262,13 @@ def process_image(path_to_image, empty_output):
                         # 3)it starts below this content but within the contents limits (meaning it is multicolumn extension)
                         if tidx > idx and tx < ct_width and (ty > y and tx > x-50) and title_encounters < 1:
                             article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                            ET.SubElement(print_space, "Content", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), contentContourId=str(content_idx))
+                            ET.SubElement(print_space, "BodyText", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), bodyTextContourId=str(content_idx))
 
                     # validating titles that are at the end of the column
                     # 1) there is no title directly below it
                     if all(x < cv2.boundingRect(tcontour)[0] for tidx, tcontour in enumerate(contours) if tidx > idx and cv2.boundingRect(tcontour)[0] > content_width) and title_encounters < 1:
                         article_mask = cutouts(article_mask, clear_contents_mask, content_contour)
-                        ET.SubElement(print_space, "Content", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), contentContourId=str(content_idx))
+                        ET.SubElement(print_space, "BodyText", height=str(h), width=str(w), xpos=str(x), ypos=str(y), contourId=str(idx), bodyTextContourId=str(content_idx))
 
         if title_came_up:
             ct_widths.append(cx+cw)
@@ -292,36 +287,57 @@ def process_image(path_to_image, empty_output):
                 article_mask[ny: ny+nh, nx: nx+nw] = article_title_p # copied title contour onto the blank image
 
             file_name = f"article-{str(idx).zfill(2)}"
-            if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(final_directory, f"{image_sans_ext}-{file_name}.png"), article_mask)
+            if logging.getLogger().level == logging.DEBUG: cv2.imwrite(os.path.join(output_dir, f"{image_sans_ext}-{file_name}.png"), article_mask)
             article_complete = True
 
             content = pytesseract.image_to_string(Image.fromarray(article_mask))
-            # with open(os.path.join(final_directory, f'{image_sans_ext}-{file_name}.txt'), 'a') as the_file:
-            #     the_file.write(content)
+            with open(os.path.join(output_dir, f'{image_sans_ext}-{file_name}.txt'), 'a') as the_file:
+                the_file.write(content)
             ET.SubElement(page, "TextBlock", articleNo=str(file_name), contourId=str(idx)).text = content
 
             tree = ET.ElementTree(letter_root)
-            xml_output_file = os.path.join(final_directory, f'{image_sans_ext}-{file_name}.xml')
-            tree.write(xml_output_file)
+            xml_output_file = os.path.join(output_dir, f'{image_sans_ext}-{file_name}.xml')
+            # this method may cause 'OSError: [Errno 24] Too many open files' and does not prettyprint
+            # tree.write(xml_output_file, encoding='utf8')
+            # OR 
+            xmlstr = ET.tostring(letter_root).decode()
+            xmlstr = minidom.parseString(xmlstr).toprettyxml(indent="\t", newl="\n")
+            with open(xml_output_file,'w+') as outfile:
+                outfile.write(xmlstr)         
 
 def main(args):
     # get params
     path_to_image = args.image
     path_to_dir = args.dir
     empty_output = args.empty
+    
+    # create out dir
+    current_directory = os.getcwd()
+    output_path = os.path.join(current_directory, r'output')
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)    
 
     if path_to_dir:
+        done_list = [str(f) for f in sorted(Path(output_path).glob('*.xml'))]
+        # initialize check until none is found since it is sequentially done
+        keep_checking = True
+        
         for f in sorted(Path(path_to_dir).glob('**/*.png')):
             f = str(f) # cast PosixPath to str
             if "page-8" in f:
-                process_image(f, empty_output)
+                txt_name = os.path.basename(f)
+                txt_sans_ext = os.path.splitext(txt_name)[0]
+                if any(txt_sans_ext in file_path for file_path in done_list):
+                    logging.info(f"FILE STARTING: {txt_sans_ext}... PROCESSED")
+                    continue
+                else:
+                    # means we have alread found starting point
+                    keep_checking = False
+                    
+           
+                process_image(f, empty_output, output_path)
     elif path_to_image:
-        output_path = os.path.dirname(path_to_image)
-        last_folder_name = os.path.basename(output_path)
-        txt_name = os.path.basename(path_to_image)
-        txt_sans_ext = os.path.splitext(txt_name)[0]
-
-        process_image(path_to_image, empty_output)
+        process_image(path_to_image, empty_output, output_path)
 
     print('Main code {} {}'.format(args.image, args.empty))
 
