@@ -8,6 +8,7 @@ __pycache__/
 
 # Ignore Data folder
 DNIssues
+**/data
 
 # C extensions
 *.so
