@@ -310,10 +310,17 @@ def main(args):
     path_to_image = args.image
     path_to_dir = args.dir
     empty_output = args.empty
+    output = args.output
     
     # create out dir
     current_directory = os.getcwd()
-    output_path = os.path.join(current_directory, r'output')
+
+    if output:
+        output_name = output
+    else:
+        output_name = 'output'
+
+    output_path = os.path.join(current_directory, rf'{output_name}')
     if not os.path.exists(output_path):
         os.makedirs(output_path)    
 
@@ -346,6 +353,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog="LettersIterate", description='Split Veritable Columns in a Newspaper Like Image')
     parser.add_argument('--image', type=str, help='Path to the image file')
     parser.add_argument('--dir', type=str, help='An optional path to directory with newspaper images') # Optional argument
+    parser.add_argument('--output', type=str, help='An optional name of the directory to serialize OCR-ed documents') # Optional argument    
     parser.add_argument('--empty', dest='empty', action='store_true', help='An optional boolean argument to empty output folder before each processing')
     parser.add_argument('--no-empty', dest='empty', action='store_false', help='An optional boolean argument to NOT empty output folder before each processing')
     parser.add_argument('--debug', dest="loglevel", action='store_true', help='print debug messages to stderr')
